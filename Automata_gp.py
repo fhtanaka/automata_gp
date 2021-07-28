@@ -13,20 +13,27 @@ def print_img(img):
     plt.figure(figsize=(4,4))
     plt.imshow(img, cmap=plt.get_cmap('gray'), vmin=0, vmax=1)
     plt.show()
-
+    
+############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
-vision = 1
 MAX_HEIGHT = 12
-tests_for_each_tree = 1
-n_total_steps = 100
-pset = gp.PrimitiveSet("MAIN", (vision+2)**2) 
+APPLY_SOBEL_FILTER = True
+VISION = 1
+TESTS_FOR_EACH_TREE = 1
+N_TOTAL_STEPS = 100
+
+############################################ Creating GP and image ################################################
+toolbox = base.Toolbox()
+input_size = (VISION+2)**2
+if APPLY_SOBEL_FILTER:
+    input_size *= 3
+pset = gp.PrimitiveSet("MAIN", input_size) 
 
 target_img = np.zeros((25,25))
 for i in range(25):
     target_img[i][:] = 1 - (i*5)/100
 
 # print_img(target_img)
-# print(type(target_img))
 
 ############################################ Image functions ################################################
 def to_rgb(x):
@@ -75,13 +82,7 @@ def draw_graph(expr):
         n.attr["label"] = labels[i]
     g.draw('out.png')
 
-target_img = load_emoji(TARGET_EMOJI)
-# Adding functions
-pset.addPrimitive(operator.add, 2)
-pset.addPrimitive(operator.sub, 2)
-pset.addPrimitive(operator.mul, 2)
-pset.addPrimitive(operator.abs, 1)
-
+############################################ Node Custom Operations ################################################
 
 def protected_div(left, right):
     if right == 0:
@@ -101,23 +102,17 @@ def if_then_else(input, output1, output2):
         return output1
     return output2
 
-pset.addPrimitive(protected_div, 2)
-pset.addPrimitive(limit, 3)
-pset.addPrimitive(if_then_else, 3)
-# Adding constants
-pset.addTerminal(0)
-pset.addTerminal(1)
-pset.addTerminal(0.1)
-
 ############################################ Automata  ################################################
-
+sobel_x = [[-1, 0, +1], [-2, 0, +2], [-1, 0, +1]]
+sobel_y = np.transpose(sobel_x)
 class CA_2D_model:
-    def __init__(self, length, width, individual, *, vision=1 ):
+    def __init__(self, length, width, individual, *, vision=VISION):
         self.graph = individual 
         self.action = toolbox.compile(individual)
         self.len = length + 2*vision
         self.wid = width + 2*vision
         self.vision = vision
+        self.vision_size = (vision+2)**2
 
         # The size of the pad is dependent on how far each cell sees to updates its valus
         self.original = np.pad(np.zeros((length, width)),1)
@@ -129,28 +124,34 @@ class CA_2D_model:
     def reset_ca(self):
         self.ca = np.copy(self.original)
 
+    def get_observation(self, i, j):
+        observation = self.ca[i-self.vision:i+self.vision+1, j-self.vision:j+self.vision+1]
+        if APPLY_SOBEL_FILTER:
+            x = np.multiply(sobel_x, observation) # apply sobel filter for edge detection
+            y = np.multiply(sobel_y, observation) # apply sobel filter for edge detection
+            return np.append(observation.reshape(-1), [x.reshape(-1), y.reshape(-1)])
+        return observation.reshape(-1)
+
     def new_cell_value(self, i, j):
         if i-self.vision < 0 or j-self.vision < 0:
             return
         if i+self.vision >= self.len or j + self.vision >= self.wid:
             return
 
-        observation = []
-        for x in range(i-self.vision, i+self.vision+1):
-            for y in range(j-self.vision, j+self.vision+1):
-                observation.append(self.ca[x, y])
-        aux = self.action(*observation)
-        # if math.isnan(aux):
-        #     draw_graph(self.graph)
-        #     aux = self.action(*observation)
-        return aux
+        observation = self.get_observation(i, j)
+        if observation[0:self.vision_size].sum() >= 1 * self.vision_size: # checking if the cell is alive
+            return 1.
+        return self.action(*observation)
 
     def update(self):
         new_ca = np.copy(self.ca)
         for i in range(self.vision, self.len - self.vision): # skipping pad
             for j in range(self.vision, self.wid - self.vision): # skipping pad
                 new_ca[i, j] = self.new_cell_value(i, j)
+        if (new_ca == self.ca).all(): # checking if the cell updated or not
+            return False
         self.ca = new_ca
+        return True
 
     def remove_pad(self):
         return self.ca[self.vision:self.len - self.vision, self.vision:self.wid - self.vision]
@@ -168,34 +169,48 @@ class CA_2D_model:
                 loss += l**2
         return loss
 
+############################################ Creating the GP ################################################
 def eval_individual(individual, render=False):
     shape = target_img.shape
     ca = CA_2D_model(shape[0], shape[1], individual)
     
     total_loss = 0.0
-    for i in range(tests_for_each_tree):
+    for i in range(TESTS_FOR_EACH_TREE):
         ca.reset_ca()
 
-        for _ in range(n_total_steps):
+        for _ in range(N_TOTAL_STEPS):
             if render:
                 print_img(ca.ca)
                 print(ca.loss(target_img))
-            ca.update()
+            update = ca.update()
+            if not update: # the automata got stable
+                break
 
         loss = ca.loss(target_img)
         total_loss += loss  
 
     
-    l = total_loss / tests_for_each_tree
+    l = total_loss / TESTS_FOR_EACH_TREE
     return (l,)
 
+
+# Adding functions
+pset.addPrimitive(operator.add, 2)
+pset.addPrimitive(operator.sub, 2)
+pset.addPrimitive(operator.mul, 2)
+pset.addPrimitive(operator.abs, 1)
+pset.addPrimitive(protected_div, 2)
+pset.addPrimitive(limit, 3)
+pset.addPrimitive(if_then_else, 3)
+# Adding constants
+pset.addTerminal(0)
+pset.addTerminal(1)
+pset.addTerminal(0.1)
 
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
 # creator.create("fitness_func", base.Fitness, weights=(-1.0,)) # How the trees will be evaluated
 # creator.create("Individual", gp.PrimitiveTree, fitness=creator.fitness_func) # A single tree
-
-toolbox = base.Toolbox()
 
 # Tree generator
 toolbox.register("tree_generator", gp.genHalfAndHalf, pset=pset, min_=1, max_=5)
@@ -215,7 +230,7 @@ toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 toolbox.decorate("mate", gp.staticLimit(operator.attrgetter('height'), MAX_HEIGHT))
 toolbox.decorate("mutate", gp.staticLimit(operator.attrgetter('height'), MAX_HEIGHT))
 
-
+############################################ Main ################################################
 
 def main():
     print_img(target_img)
