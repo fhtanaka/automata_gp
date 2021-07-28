@@ -8,12 +8,8 @@ import matplotlib.pyplot as plt
 import math
 import imageio
 import pickle
+import argparse
 
-def print_img(img):
-    plt.figure(figsize=(4,4))
-    plt.imshow(img, cmap=plt.get_cmap('gray'), vmin=0, vmax=1)
-    plt.show()
-    
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
 MAX_HEIGHT = 12
@@ -21,6 +17,70 @@ APPLY_SOBEL_FILTER = True
 VISION = 1
 TESTS_FOR_EACH_TREE = 1
 N_TOTAL_STEPS = 100
+GENS = 30
+TARGET_IMG = np.full((25,25), .5)
+SAVETO = None
+RENDER = False
+
+############################################ Test Images ################################################
+def degrade_img():
+    img = np.ones((25,25))
+    for i in range(25):
+        img[i][:] = 1 - (i*5)/100
+    return img
+
+def column_img():
+    img = np.ones((25,25))
+    for i in range(25):
+        for j in range(25):
+            if j == 12:
+                img[i][j] = 1 - (i*5)/100
+    return img
+
+def plus_img():
+    img = np.ones((25,25))
+    for i in range(25):
+        for j in range(25):
+            if j == 12 or i == 12:
+                img[i][j] = 0
+    return img
+
+def x_img():
+    img = np.ones((25,25))
+    for i in range(25):
+        for j in range(25):
+            if j == i or i + j == 24:
+                img[i][j] = 0
+    return img
+
+def print_img(img):
+    plt.figure(figsize=(4,4))
+    plt.imshow(img, cmap=plt.get_cmap('gray'), vmin=0, vmax=1)
+    plt.show()
+
+############################################ Parser args ################################################
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-s', nargs='?', default=None,
+                    help='The filename for a checkpoint file to restart from')
+
+parser.add_argument('-g', nargs='?', type=int, default=GENS, help='number of generations')
+
+parser.add_argument('--sober', type=bool, nargs='?', default=APPLY_SOBEL_FILTER, help='')
+
+parser.add_argument('--img', nargs='?', default=None, help='')
+
+parser.add_argument('--steps', nargs='?', type=int, default=N_TOTAL_STEPS, help='')
+
+parser.add_argument('--render', nargs='?', type=bool, default=RENDER, help='')
+
+command_line_args = parser.parse_args()
+
+GENS = command_line_args.g
+SAVETO = command_line_args.s
+APPLY_SOBEL_FILTER = command_line_args.sober
+N_TOTAL_STEPS = command_line_args.steps
+RENDER = command_line_args.render
 
 ############################################ Creating GP and image ################################################
 toolbox = base.Toolbox()
@@ -29,13 +89,7 @@ if APPLY_SOBEL_FILTER:
     input_size *= 3
 pset = gp.PrimitiveSet("MAIN", input_size) 
 
-target_img = np.zeros((25,25))
-for i in range(25):
-    target_img[i][:] = 1 - (i*5)/100
-
-# print_img(target_img)
-
-############################################ Image functions ################################################
+############################################ Image Convertion functions ################################################
 def to_rgb(x):
     # assume rgb premultiplied by alpha
     rgb, a = x[..., :3], to_alpha(x)
@@ -49,9 +103,9 @@ def to_gray(x):
     return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
 
 
-def load_emoji(index, path="data/emoji.png"):
+def load_emoji(index, path="data/emoji.png", size=40):
     im = imageio.imread(path)
-    emoji = np.array(im[:, index*40:(index+1)*40].astype(np.float32))
+    emoji = np.array(im[:, index*size:(index+1)*size].astype(np.float32))
     emoji /= 255.0
     gray_emoji = to_gray(emoji)
     return gray_emoji
@@ -171,7 +225,7 @@ class CA_2D_model:
 
 ############################################ Creating the GP ################################################
 def eval_individual(individual, render=False):
-    shape = target_img.shape
+    shape = TARGET_IMG.shape
     ca = CA_2D_model(shape[0], shape[1], individual)
     
     total_loss = 0.0
@@ -180,13 +234,13 @@ def eval_individual(individual, render=False):
 
         for _ in range(N_TOTAL_STEPS):
             if render:
-                print_img(ca.ca)
-                print(ca.loss(target_img))
+                print_img(ca.remove_pad())
+                print(ca.loss(TARGET_IMG))
             update = ca.update()
             if not update: # the automata got stable
                 break
 
-        loss = ca.loss(target_img)
+        loss = ca.loss(TARGET_IMG)
         total_loss += loss  
 
     
@@ -233,7 +287,35 @@ toolbox.decorate("mutate", gp.staticLimit(operator.attrgetter('height'), MAX_HEI
 ############################################ Main ################################################
 
 def main():
-    print_img(target_img)
+    global TARGET_IMG 
+    if command_line_args.img is not None:
+        if command_line_args.img == "stick":
+            TARGET_IMG = load_emoji(0, "data/stick.png", 25)
+        elif command_line_args.img == "brazil":
+            TARGET_IMG = load_emoji(0, "data/brazil.png", 25)
+        elif command_line_args.img == "column":
+            TARGET_IMG = column_img()
+        elif command_line_args.img == "plus":
+            TARGET_IMG = plus_img
+        elif command_line_args.img == "degrade":
+            TARGET_IMG = degrade_img()
+        elif command_line_args.img == "x":
+            TARGET_IMG = x_img()
+        else:
+            TARGET_IMG = load_emoji(command_line_args.img)
+
+    print("MAX_HEIGHT: ", MAX_HEIGHT)
+    print("APPLY_SOBEL_FILTER: ", APPLY_SOBEL_FILTER)
+    print("VISION: ", VISION)
+    print("TESTS_FOR_EACH_TREE: ", TESTS_FOR_EACH_TREE)
+    print("N_TOTAL_STEPS: ", N_TOTAL_STEPS)
+    print("GENS: ", GENS)
+    print("TARGET_IMG: ",  command_line_args.img)
+    print("SAVETO: ", SAVETO)
+    print("RENDER: ", RENDER)
+    print()
+
+    # print_img(TARGET_IMG)
     pop = toolbox.population(n=250)
     hof = tools.HallOfFame(5)
 
@@ -245,20 +327,19 @@ def main():
     mstats.register("min", np.min)
     mstats.register("max", np.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.9, 0.3, 200, stats=mstats,
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.9, 0.3, GENS, stats=mstats,
                                    halloffame=hof, verbose=True)
-    draw_graph(hof[0])
-    eval_individual(hof[0], True)
+    # draw_graph(hof[0])
+    if RENDER:
+        eval_individual(hof[0], True)
 
     # print log
-
-    with open("checkpoint_name.pkl", "wb") as cp_file:
-        pickle.dump(dict(halloffame=hof), cp_file)
+    if SAVETO is not None:
+        with open(SAVETO, "wb") as cp_file:
+            pickle.dump(dict(halloffame=hof), cp_file)
 
     return pop, log, hof
 
 if __name__ == "__main__":
     main()
-
-
 
