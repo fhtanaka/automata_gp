@@ -184,7 +184,7 @@ class CA_2D_model:
     def remove_pad(self):
         return self.ca[self.vision:self.len - self.vision, self.vision:self.wid - self.vision]
 
-    def loss(self, target_image):
+    def fitness(self, target_image):
         ca = self.remove_pad()
         if target_image.shape != ca.shape:
             raise
@@ -192,10 +192,10 @@ class CA_2D_model:
         for i in range(target_image.shape[0]):
             for j in range(target_image.shape[1]):
                 if ca[i,j] > 1 or ca[i,j] < 0 or math.isnan(ca[i,j]):
-                    return 1000
+                    return -1000
                 l = ca[i,j] - target_image[i,j]
                 loss += l**2
-        return loss
+        return 1 - loss
 
 ############################################ Creating GP and image ################################################
 toolbox = base.Toolbox()
@@ -230,24 +230,22 @@ def eval_individual(individual, render=False):
     ind = toolbox.compile(individual)
     ca = CA_2D_model(shape[0], shape[1], ind)
     
-    total_loss = 0.0
+    total_fitness = 0.0
     for i in range(TESTS_FOR_EACH_TREE):
         ca.reset_ca()
 
         for _ in range(N_TOTAL_STEPS):
             if render:
                 print_img(ca.remove_pad())
-                print(ca.loss(TARGET_IMG))
+                print(ca.fitness(TARGET_IMG))
             update = ca.update()
             if not update: # the automata got stable
                 break
 
-        loss = ca.loss(TARGET_IMG)
-        total_loss += loss  
+        total_fitness += ca.fitness(TARGET_IMG)  
 
-    
-    l = total_loss / TESTS_FOR_EACH_TREE
-    return (l,)
+    fitness = (total_fitness / TESTS_FOR_EACH_TREE) 
+    return (fitness,)
 
 
 # Adding functions
@@ -263,8 +261,8 @@ pset.addTerminal(0)
 pset.addTerminal(1)
 pset.addTerminal(0.1)
 
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+creator.create("Fitness", base.Fitness, weights=(1.0,))
+creator.create("Individual", gp.PrimitiveTree, fitness=creator.Fitness)
 
 # Tree generator
 toolbox.register("tree_generator", gp.genHalfAndHalf, pset=pset, min_=1, max_=5)
@@ -296,7 +294,7 @@ def main():
         elif command_line_args.img == "column":
             TARGET_IMG = column_img()
         elif command_line_args.img == "plus":
-            TARGET_IMG = plus_img
+            TARGET_IMG = plus_img()
         elif command_line_args.img == "degrade":
             TARGET_IMG = degrade_img()
         elif command_line_args.img == "x":
@@ -315,28 +313,34 @@ def main():
     print("RENDER: ", RENDER)
     print()
 
-    # print_img(TARGET_IMG)
     pop = toolbox.population(n=POPULATION)
-    hof = tools.HallOfFame(5)
+    hof = tools.HallOfFame(1)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
-    stats_size = tools.Statistics(len)
-    mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
+    # stats_size = tools.Statistics(len)
+    mstats = tools.MultiStatistics(fitness=stats_fit)
     mstats.register("avg", np.mean)
     mstats.register("std", np.std)
     mstats.register("min", np.min)
     mstats.register("max", np.max)
 
+    if RENDER:
+        print_img(TARGET_IMG)
+
     pop, log = algorithms.eaSimple(pop, toolbox, 0.9, 0.3, GENS, stats=mstats,
                                    halloffame=hof, verbose=True)
-    # draw_graph(hof[0])
     if RENDER:
+        print(hof[0].fitness)
         eval_individual(hof[0], True)
 
     # print log
     if SAVETO is not None:
         with open(SAVETO, "wb") as cp_file:
-            pickle.dump(dict(halloffame=hof), cp_file)
+            cp = dict(
+                population=pop, 
+                halloffame=hof,
+                logbook=log)
+            pickle.dump(cp, cp_file)
 
     return pop, log, hof
 
