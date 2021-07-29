@@ -9,11 +9,13 @@ import math
 import imageio
 import pickle
 import argparse
-
+import warnings
+warnings.simplefilter('ignore') 
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
-MAX_HEIGHT = 12
-APPLY_SOBEL_FILTER = True
+MAX_HEIGHT = 15
+POPULATION = 250
+APPLY_SOBEL_FILTER = False
 VISION = 1
 TESTS_FOR_EACH_TREE = 1
 N_TOTAL_STEPS = 100
@@ -82,13 +84,6 @@ APPLY_SOBEL_FILTER = command_line_args.sober
 N_TOTAL_STEPS = command_line_args.steps
 RENDER = command_line_args.render
 
-############################################ Creating GP and image ################################################
-toolbox = base.Toolbox()
-input_size = (VISION+2)**2
-if APPLY_SOBEL_FILTER:
-    input_size *= 3
-pset = gp.PrimitiveSet("MAIN", input_size) 
-
 ############################################ Image Convertion functions ################################################
 def to_rgb(x):
     # assume rgb premultiplied by alpha
@@ -136,33 +131,12 @@ def draw_graph(expr):
         n.attr["label"] = labels[i]
     g.draw('out.png')
 
-############################################ Node Custom Operations ################################################
-
-def protected_div(left, right):
-    if right == 0:
-        return 1
-    return left / right
-    
-def limit(input, minimum, maximum):
-    if input < minimum:
-        return minimum
-    elif input > maximum:
-        return maximum
-    else:
-        return input
-
-def if_then_else(input, output1, output2):
-    if input: 
-        return output1
-    return output2
-
 ############################################ Automata  ################################################
 sobel_x = [[-1, 0, +1], [-2, 0, +2], [-1, 0, +1]]
 sobel_y = np.transpose(sobel_x)
 class CA_2D_model:
     def __init__(self, length, width, individual, *, vision=VISION):
-        self.graph = individual 
-        self.action = toolbox.compile(individual)
+        self.individual = individual
         self.len = length + 2*vision
         self.wid = width + 2*vision
         self.vision = vision
@@ -180,7 +154,7 @@ class CA_2D_model:
 
     def get_observation(self, i, j):
         observation = self.ca[i-self.vision:i+self.vision+1, j-self.vision:j+self.vision+1]
-        if APPLY_SOBEL_FILTER:
+        if APPLY_SOBEL_FILTER and observation.shape == sobel_y.shape:
             x = np.multiply(sobel_x, observation) # apply sobel filter for edge detection
             y = np.multiply(sobel_y, observation) # apply sobel filter for edge detection
             return np.append(observation.reshape(-1), [x.reshape(-1), y.reshape(-1)])
@@ -195,7 +169,7 @@ class CA_2D_model:
         observation = self.get_observation(i, j)
         if observation[0:self.vision_size].sum() >= 1 * self.vision_size: # checking if the cell is alive
             return 1.
-        return self.action(*observation)
+        return self.individual(*observation)
 
     def update(self):
         new_ca = np.copy(self.ca)
@@ -223,10 +197,38 @@ class CA_2D_model:
                 loss += l**2
         return loss
 
+############################################ Creating GP and image ################################################
+toolbox = base.Toolbox()
+input_size = (VISION+2)**2
+if APPLY_SOBEL_FILTER:
+    input_size *= 3
+pset = gp.PrimitiveSet("MAIN", input_size) 
+
+############################################ Node Custom Operations ################################################
+
+def protected_div(left, right):
+    if right == 0:
+        return 1
+    return left / right
+    
+def limit(input, minimum, maximum):
+    if input < minimum:
+        return minimum
+    elif input > maximum:
+        return maximum
+    else:
+        return input
+
+def if_then_else(input, output1, output2):
+    if input: 
+        return output1
+    return output2
+
 ############################################ Creating the GP ################################################
 def eval_individual(individual, render=False):
     shape = TARGET_IMG.shape
-    ca = CA_2D_model(shape[0], shape[1], individual)
+    ind = toolbox.compile(individual)
+    ca = CA_2D_model(shape[0], shape[1], ind)
     
     total_loss = 0.0
     for i in range(TESTS_FOR_EACH_TREE):
@@ -263,8 +265,6 @@ pset.addTerminal(0.1)
 
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
-# creator.create("fitness_func", base.Fitness, weights=(-1.0,)) # How the trees will be evaluated
-# creator.create("Individual", gp.PrimitiveTree, fitness=creator.fitness_func) # A single tree
 
 # Tree generator
 toolbox.register("tree_generator", gp.genHalfAndHalf, pset=pset, min_=1, max_=5)
@@ -316,7 +316,7 @@ def main():
     print()
 
     # print_img(TARGET_IMG)
-    pop = toolbox.population(n=250)
+    pop = toolbox.population(n=POPULATION)
     hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
