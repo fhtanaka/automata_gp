@@ -14,7 +14,7 @@ warnings.simplefilter('ignore')
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
 MAX_HEIGHT = 15
-POPULATION = 250
+POPULATION = 300
 APPLY_SOBEL_FILTER = False
 VISION = 1
 TESTS_FOR_EACH_TREE = 1
@@ -59,30 +59,6 @@ def print_img(img):
     plt.figure(figsize=(4,4))
     plt.imshow(img, cmap=plt.get_cmap('gray'), vmin=0, vmax=1)
     plt.show()
-
-############################################ Parser args ################################################
-parser = argparse.ArgumentParser()
-
-parser.add_argument('-s', nargs='?', default=None,
-                    help='The filename for a checkpoint file to restart from')
-
-parser.add_argument('-g', nargs='?', type=int, default=GENS, help='number of generations')
-
-parser.add_argument('--sober', type=bool, nargs='?', default=APPLY_SOBEL_FILTER, help='')
-
-parser.add_argument('--img', nargs='?', default=None, help='')
-
-parser.add_argument('--steps', nargs='?', type=int, default=N_TOTAL_STEPS, help='')
-
-parser.add_argument('--render', nargs='?', type=bool, default=RENDER, help='')
-
-command_line_args = parser.parse_args()
-
-GENS = command_line_args.g
-SAVETO = command_line_args.s
-APPLY_SOBEL_FILTER = command_line_args.sober
-N_TOTAL_STEPS = command_line_args.steps
-RENDER = command_line_args.render
 
 ############################################ Image Convertion functions ################################################
 def to_rgb(x):
@@ -130,6 +106,55 @@ def draw_graph(expr):
         n = g.get_node(i)
         n.attr["label"] = labels[i]
     g.draw('out.png')
+
+############################################ Parser args ################################################
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-s', nargs='?', default=None,
+                    help='The filename for a checkpoint file to restart from')
+
+parser.add_argument('-g', nargs='?', type=int, default=GENS, help='number of generations')
+
+parser.add_argument('--sober', type=str, nargs='?', default="false", help='')
+
+parser.add_argument('--img', nargs='?', default=None, help='')
+
+parser.add_argument('--steps', nargs='?', type=int, default=N_TOTAL_STEPS, help='')
+
+parser.add_argument('--render', nargs='?', type=str, default="false", help='')
+
+parser.add_argument('--pop', nargs='?', type=int, default=POPULATION, help='')
+
+command_line_args = parser.parse_args()
+
+GENS = command_line_args.g
+SAVETO = command_line_args.s
+N_TOTAL_STEPS = command_line_args.steps
+POPULATION = command_line_args.pop
+
+if command_line_args.render == "true" or command_line_args.render == "True":
+    RENDER = True
+
+if command_line_args.sober == "true" or command_line_args.sober == "True":
+    APPLY_SOBEL_FILTER = True
+
+if command_line_args.img is not None:
+    if command_line_args.img == "stick":
+        TARGET_IMG = load_emoji(0, "data/stick.png", 25)
+    elif command_line_args.img == "brazil":
+        TARGET_IMG = load_emoji(0, "data/brazil.png", 25)
+    elif command_line_args.img == "column":
+        TARGET_IMG = column_img()
+    elif command_line_args.img == "plus":
+        TARGET_IMG = plus_img()
+    elif command_line_args.img == "degrade":
+        TARGET_IMG = degrade_img()
+    elif command_line_args.img == "x":
+        TARGET_IMG = x_img()
+    else:
+        TARGET_IMG = load_emoji(command_line_args.img)
+else:
+    command_line_args.img = "Gray"
 
 ############################################ Automata  ################################################
 sobel_x = [[-1, 0, +1], [-2, 0, +2], [-1, 0, +1]]
@@ -224,8 +249,33 @@ def if_then_else(input, output1, output2):
         return output1
     return output2
 
+def max(a, b):
+    if a > b:
+        return a
+    return b
+
+def min(a, b):
+    if a < b:
+        return a
+    return b
+
 ############################################ Creating the GP ################################################
+# Adding functions
+pset.addPrimitive(operator.add, 2)
+pset.addPrimitive(operator.sub, 2)
+pset.addPrimitive(operator.mul, 2)
+pset.addPrimitive(operator.abs, 1)
+pset.addPrimitive(protected_div, 2)
+pset.addPrimitive(limit, 3)
+pset.addPrimitive(max, 2)
+pset.addPrimitive(min, 2)
+# Adding constants
+pset.addTerminal(0)
+pset.addTerminal(1)
+pset.addTerminal(0.1)
+
 def eval_individual(individual, render=False):
+    global TARGET_IMG
     shape = TARGET_IMG.shape
     ind = toolbox.compile(individual)
     ca = CA_2D_model(shape[0], shape[1], ind)
@@ -246,20 +296,6 @@ def eval_individual(individual, render=False):
 
     fitness = (total_fitness / TESTS_FOR_EACH_TREE) 
     return (fitness,)
-
-
-# Adding functions
-pset.addPrimitive(operator.add, 2)
-pset.addPrimitive(operator.sub, 2)
-pset.addPrimitive(operator.mul, 2)
-pset.addPrimitive(operator.abs, 1)
-pset.addPrimitive(protected_div, 2)
-pset.addPrimitive(limit, 3)
-pset.addPrimitive(if_then_else, 3)
-# Adding constants
-pset.addTerminal(0)
-pset.addTerminal(1)
-pset.addTerminal(0.1)
 
 creator.create("Fitness", base.Fitness, weights=(1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.Fitness)
@@ -285,22 +321,6 @@ toolbox.decorate("mutate", gp.staticLimit(operator.attrgetter('height'), MAX_HEI
 ############################################ Main ################################################
 
 def main():
-    global TARGET_IMG 
-    if command_line_args.img is not None:
-        if command_line_args.img == "stick":
-            TARGET_IMG = load_emoji(0, "data/stick.png", 25)
-        elif command_line_args.img == "brazil":
-            TARGET_IMG = load_emoji(0, "data/brazil.png", 25)
-        elif command_line_args.img == "column":
-            TARGET_IMG = column_img()
-        elif command_line_args.img == "plus":
-            TARGET_IMG = plus_img()
-        elif command_line_args.img == "degrade":
-            TARGET_IMG = degrade_img()
-        elif command_line_args.img == "x":
-            TARGET_IMG = x_img()
-        else:
-            TARGET_IMG = load_emoji(command_line_args.img)
 
     print("MAX_HEIGHT: ", MAX_HEIGHT)
     print("APPLY_SOBEL_FILTER: ", APPLY_SOBEL_FILTER)
@@ -314,7 +334,7 @@ def main():
     print()
 
     pop = toolbox.population(n=POPULATION)
-    hof = tools.HallOfFame(1)
+    hof = tools.HallOfFame(5)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     # stats_size = tools.Statistics(len)
@@ -331,9 +351,10 @@ def main():
                                    halloffame=hof, verbose=True)
     if RENDER:
         print(hof[0].fitness)
-        eval_individual(hof[0], True)
+        draw_graph(hof[0])
+        fit = eval_individual(hof[0], True)
+        print(fit)
 
-    # print log
     if SAVETO is not None:
         with open(SAVETO, "wb") as cp_file:
             cp = dict(
