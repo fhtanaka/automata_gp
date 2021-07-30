@@ -13,7 +13,7 @@ import argparse
 # warnings.simplefilter('ignore') 
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
-MAX_HEIGHT = 10
+MAX_HEIGHT = 15
 POPULATION = 400
 APPLY_SOBEL_FILTER = False
 VISION = 1
@@ -112,7 +112,7 @@ def create_base_env(target_image):
     env[int(a/2)][int(b/2)] = 0
     return env
     
-def draw_graph(expr, name="out"):
+def save_graph(expr, name="out"):
     nodes, edges, labels = gp.graph(expr)
     g = pgv.AGraph()
     g.add_nodes_from(nodes)
@@ -132,7 +132,7 @@ parser.add_argument('-s', nargs='?', default=None,
 
 parser.add_argument('-g', nargs='?', type=int, default=GENS, help='number of generations')
 
-parser.add_argument('--sober', type=str, nargs='?', default="false", help='')
+parser.add_argument('--sobel', type=str, nargs='?', default="false", help='')
 
 parser.add_argument('--img', nargs='?', default=None, help='')
 
@@ -152,7 +152,7 @@ POPULATION = command_line_args.pop
 if command_line_args.render == "true" or command_line_args.render == "True":
     RENDER = True
 
-if command_line_args.sober == "true" or command_line_args.sober == "True":
+if command_line_args.sobel == "true" or command_line_args.sobel == "True":
     APPLY_SOBEL_FILTER = True
 
 if command_line_args.img is not None:
@@ -178,7 +178,7 @@ else:
     command_line_args.img = "Gray"
 
 ############################################ Automata  ################################################
-sobel_x = [[-1, 0, +1], [-2, 0, +2], [-1, 0, +1]]
+sobel_x = np.array([[-1, 0, +1], [-2, 0, +2], [-1, 0, +1]])
 sobel_y = np.transpose(sobel_x)
 class CA_2D_model:
     def __init__(self, length, width, individual, *, vision=VISION):
@@ -187,10 +187,10 @@ class CA_2D_model:
         self.len = length + 2*vision
         self.wid = width + 2*vision
         self.vision = vision
-        self.vision_size = (vision+2)**2
+        self.vision_size = (1+VISION*2)**2
 
         # The size of the pad is dependent on how far each cell sees to updates its valus
-        self.original = np.pad(np.zeros((length, width)),1)
+        self.original = np.pad(np.zeros((length, width)), vision)
         self.original[:] = 1 # make all cells white
         self.original[int(self.len/2)][int(self.wid/2)] = 0 # make the center cell black
 
@@ -204,7 +204,7 @@ class CA_2D_model:
         if APPLY_SOBEL_FILTER and observation.shape == sobel_y.shape:
             x = np.multiply(sobel_x, observation) # apply sobel filter for edge detection
             y = np.multiply(sobel_y, observation) # apply sobel filter for edge detection
-            return np.append(observation.reshape(-1), [x.reshape(-1), y.reshape(-1)])
+            return np.append(observation.reshape(-1), [x.sum(), y.sum()])
         return observation.reshape(-1)
 
     def new_cell_value(self, i, j):
@@ -250,9 +250,9 @@ class CA_2D_model:
 
 ############################################ Creating GP and image ################################################
 toolbox = base.Toolbox()
-input_size = (VISION+2)**2
+input_size = (1+VISION*2)**2
 if APPLY_SOBEL_FILTER:
-    input_size *= 3
+    input_size += 2
 pset = gp.PrimitiveSet("MAIN", input_size) 
 
 ############################################ Node Custom Operations ################################################
@@ -290,12 +290,12 @@ def min(a, b):
 pset.addPrimitive(operator.add, 2)
 pset.addPrimitive(operator.sub, 2)
 pset.addPrimitive(operator.mul, 2)
-pset.addPrimitive(operator.abs, 1)
+# pset.addPrimitive(operator.abs, 1)
 pset.addPrimitive(protected_div, 2)
 pset.addPrimitive(limit, 3)
-pset.addPrimitive(if_then_else, 3)
-pset.addPrimitive(max, 2)
-pset.addPrimitive(min, 2)
+# pset.addPrimitive(if_then_else, 3)
+# pset.addPrimitive(max, 2)
+# pset.addPrimitive(min, 2)
 # Adding constants
 pset.addTerminal(0)
 pset.addTerminal(1)
@@ -352,14 +352,15 @@ def avg(aux):
 
 def main():
 
+    
+    print("TARGET_IMG: ",  command_line_args.img)
     print("POPULATION: ", POPULATION)
+    print("GENS: ", GENS)
     print("MAX_HEIGHT: ", MAX_HEIGHT)
-    print("APPLY_SOBEL_FILTER: ", APPLY_SOBEL_FILTER)
-    print("VISION: ", VISION)
     print("TESTS_FOR_EACH_TREE: ", TESTS_FOR_EACH_TREE)
     print("N_TOTAL_STEPS: ", N_TOTAL_STEPS)
-    print("GENS: ", GENS)
-    print("TARGET_IMG: ",  command_line_args.img)
+    print("APPLY_SOBEL_FILTER: ", APPLY_SOBEL_FILTER)
+    print("VISION: ", VISION)
     print("SAVETO: ", SAVETO)
     print("RENDER: ", RENDER)
     print()
@@ -382,7 +383,7 @@ def main():
                                    halloffame=hof, verbose=True)
     if RENDER:
         print(hof[0].fitness)
-        draw_graph(hof[0], command_line_args.img)
+        save_graph(hof[0], command_line_args.img)
         fit = eval_individual(hof[0], True)
         print(fit)
 
