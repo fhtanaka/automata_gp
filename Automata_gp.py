@@ -14,7 +14,7 @@ warnings.simplefilter('ignore')
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
 MAX_HEIGHT = 15
-POPULATION = 300
+POPULATION = 400
 APPLY_SOBEL_FILTER = False
 VISION = 1
 TESTS_FOR_EACH_TREE = 1
@@ -28,7 +28,7 @@ RENDER = False
 def degrade_img():
     img = np.ones((25,25))
     for i in range(25):
-        img[i][:] = 1 - (i*5)/100
+        img[i][:] = 1 - (i*4)/100
     return img
 
 def column_img():
@@ -36,7 +36,7 @@ def column_img():
     for i in range(25):
         for j in range(25):
             if j == 12:
-                img[i][j] = 1 - (i*5)/100
+                img[i][j] = 1 - (i*4)/100
     return img
 
 def plus_img():
@@ -52,6 +52,22 @@ def x_img():
     for i in range(25):
         for j in range(25):
             if j == i or i + j == 24:
+                img[i][j] = 0
+    return img
+
+def diagonal_img():
+    img = np.ones((25,25))
+    for i in range(25):
+        for j in range(25):
+            if i + j == 24:
+                img[i][j] = 0
+    return img
+
+def inv_diagonal_img():
+    img = np.ones((25,25))
+    for i in range(25):
+        for j in range(25):
+            if i == j:
                 img[i][j] = 0
     return img
 
@@ -95,7 +111,7 @@ def create_base_env(target_image):
     env[int(a/2)][int(b/2)] = 0
     return env
     
-def draw_graph(expr):
+def draw_graph(expr, name="out"):
     nodes, edges, labels = gp.graph(expr)
     g = pgv.AGraph()
     g.add_nodes_from(nodes)
@@ -105,7 +121,7 @@ def draw_graph(expr):
     for i in nodes:
         n = g.get_node(i)
         n.attr["label"] = labels[i]
-    g.draw('out.png')
+    g.draw(name+".png")
 
 ############################################ Parser args ################################################
 parser = argparse.ArgumentParser()
@@ -151,6 +167,10 @@ if command_line_args.img is not None:
         TARGET_IMG = degrade_img()
     elif command_line_args.img == "x":
         TARGET_IMG = x_img()
+    elif command_line_args.img == "diagonal":
+        TARGET_IMG = diagonal_img()
+    elif command_line_args.img == "inv_diagonal":
+        TARGET_IMG = inv_diagonal_img()
     else:
         TARGET_IMG = load_emoji(command_line_args.img)
 else:
@@ -267,6 +287,7 @@ pset.addPrimitive(operator.mul, 2)
 pset.addPrimitive(operator.abs, 1)
 pset.addPrimitive(protected_div, 2)
 pset.addPrimitive(limit, 3)
+pset.addPrimitive(if_then_else, 3)
 pset.addPrimitive(max, 2)
 pset.addPrimitive(min, 2)
 # Adding constants
@@ -322,6 +343,7 @@ toolbox.decorate("mutate", gp.staticLimit(operator.attrgetter('height'), MAX_HEI
 
 def main():
 
+    print("POPULATION: ", POPULATION)
     print("MAX_HEIGHT: ", MAX_HEIGHT)
     print("APPLY_SOBEL_FILTER: ", APPLY_SOBEL_FILTER)
     print("VISION: ", VISION)
@@ -351,7 +373,7 @@ def main():
                                    halloffame=hof, verbose=True)
     if RENDER:
         print(hof[0].fitness)
-        draw_graph(hof[0])
+        draw_graph(hof[0], command_line_args.img)
         fit = eval_individual(hof[0], True)
         print(fit)
 

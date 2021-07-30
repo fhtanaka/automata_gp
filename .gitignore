@@ -19,5 +19,6 @@ __pycache__
 .ipynb_checkpoints
 out*
 *.pkl
+*.png
 testes/
 .vscode/
