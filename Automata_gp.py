@@ -9,8 +9,8 @@ import math
 import imageio
 import pickle
 import argparse
-import warnings
-warnings.simplefilter('ignore') 
+# import warnings
+# warnings.simplefilter('ignore') 
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
 MAX_HEIGHT = 15
@@ -181,6 +181,7 @@ sobel_x = [[-1, 0, +1], [-2, 0, +2], [-1, 0, +1]]
 sobel_y = np.transpose(sobel_x)
 class CA_2D_model:
     def __init__(self, length, width, individual, *, vision=VISION):
+        self.action = toolbox.compile(individual)
         self.individual = individual
         self.len = length + 2*vision
         self.wid = width + 2*vision
@@ -189,8 +190,8 @@ class CA_2D_model:
 
         # The size of the pad is dependent on how far each cell sees to updates its valus
         self.original = np.pad(np.zeros((length, width)),1)
-        self.original[:] = 1    
-        self.original[int(self.len/2)][int(self.wid/2)] = 0
+        self.original[:] = 1 # make all cells white
+        self.original[int(self.len/2)][int(self.wid/2)] = 0 # make the center cell black
 
         self.ca = np.copy(self.original)
     
@@ -206,21 +207,23 @@ class CA_2D_model:
         return observation.reshape(-1)
 
     def new_cell_value(self, i, j):
+        # checking ig it is a pad
         if i-self.vision < 0 or j-self.vision < 0:
-            return
+            return 1
         if i+self.vision >= self.len or j + self.vision >= self.wid:
-            return
+            return 1
 
         observation = self.get_observation(i, j)
         if observation[0:self.vision_size].sum() >= 1 * self.vision_size: # checking if the cell is alive
-            return 1.
-        return self.individual(*observation)
+            return 1
+        return round(self.action(*observation), 5)
 
     def update(self):
         new_ca = np.copy(self.ca)
         for i in range(self.vision, self.len - self.vision): # skipping pad
             for j in range(self.vision, self.wid - self.vision): # skipping pad
-                new_ca[i, j] = self.new_cell_value(i, j)
+                aux = self.new_cell_value(i, j)
+                new_ca[i, j] = limit(aux, 0, 1) # Putting the result in the range 0, 1
         if (new_ca == self.ca).all(): # checking if the cell updated or not
             return False
         self.ca = new_ca
@@ -298,8 +301,7 @@ pset.addTerminal(0.1)
 def eval_individual(individual, render=False):
     global TARGET_IMG
     shape = TARGET_IMG.shape
-    ind = toolbox.compile(individual)
-    ca = CA_2D_model(shape[0], shape[1], ind)
+    ca = CA_2D_model(shape[0], shape[1], individual)
     
     total_fitness = 0.0
     for i in range(TESTS_FOR_EACH_TREE):
