@@ -13,7 +13,7 @@ import argparse
 # warnings.simplefilter('ignore') 
 ############################################ Parameters ################################################
 TARGET_EMOJI = 0 #@param "🦎"
-MAX_HEIGHT = 15
+MAX_HEIGHT = 10
 POPULATION = 400
 APPLY_SOBEL_FILTER = False
 VISION = 1
@@ -23,6 +23,7 @@ GENS = 30
 TARGET_IMG = np.full((25,25), .5)
 SAVETO = None
 RENDER = False
+LIMIT = 10000
 
 ############################################ Test Images ################################################
 def degrade_img():
@@ -216,14 +217,16 @@ class CA_2D_model:
         observation = self.get_observation(i, j)
         if observation[0:self.vision_size].sum() >= 1 * self.vision_size: # checking if the cell is alive
             return 1
-        return round(self.action(*observation), 5)
+        value = self.action(*observation)
+        value = round(value, 5)
+        value = limit(value, -1*LIMIT, LIMIT)
+        return value
 
     def update(self):
         new_ca = np.copy(self.ca)
         for i in range(self.vision, self.len - self.vision): # skipping pad
             for j in range(self.vision, self.wid - self.vision): # skipping pad
-                aux = self.new_cell_value(i, j)
-                new_ca[i, j] = limit(aux, 0, 1) # Putting the result in the range 0, 1
+                new_ca[i, j] = self.new_cell_value(i, j)
         if (new_ca == self.ca).all(): # checking if the cell updated or not
             return False
         self.ca = new_ca
@@ -239,7 +242,7 @@ class CA_2D_model:
         loss = 0
         for i in range(target_image.shape[0]):
             for j in range(target_image.shape[1]):
-                if ca[i,j] > 1 or ca[i,j] < 0 or math.isnan(ca[i,j]):
+                if ca[i,j] > 1 or ca[i,j] < 0: # Checking if the cell is in the right interval
                     return -1000
                 l = ca[i,j] - target_image[i,j]
                 loss += l**2
@@ -297,6 +300,7 @@ pset.addPrimitive(min, 2)
 pset.addTerminal(0)
 pset.addTerminal(1)
 pset.addTerminal(0.1)
+pset.addTerminal(0.5)
 
 def eval_individual(individual, render=False):
     global TARGET_IMG
@@ -343,6 +347,9 @@ toolbox.decorate("mutate", gp.staticLimit(operator.attrgetter('height'), MAX_HEI
 
 ############################################ Main ################################################
 
+def avg(aux):
+    return round(np.mean(aux), 1)
+
 def main():
 
     print("POPULATION: ", POPULATION)
@@ -363,7 +370,7 @@ def main():
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     # stats_size = tools.Statistics(len)
     mstats = tools.MultiStatistics(fitness=stats_fit)
-    mstats.register("avg", np.mean)
+    mstats.register("avg", avg)
     mstats.register("std", np.std)
     mstats.register("min", np.min)
     mstats.register("max", np.max)
