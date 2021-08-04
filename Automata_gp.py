@@ -5,7 +5,6 @@ from deap import algorithms, base, creator, gp, tools
 from scoop import futures
 import pygraphviz as pgv
 import matplotlib.pyplot as plt
-import math
 import imageio
 import pickle
 import argparse
@@ -24,6 +23,7 @@ TARGET_IMG = np.full((25,25), .5)
 SAVETO = None
 RENDER = False
 LIMIT = 10000
+GPS_ON_CELL = True
 
 ############################################ Test Images ################################################
 def degrade_img():
@@ -217,6 +217,8 @@ class CA_2D_model:
         observation = self.get_observation(i, j)
         if observation[0:self.vision_size].sum() >= 1 * self.vision_size: # checking if the cell is alive
             return 1
+        if GPS_ON_CELL:
+            observation = np.append(observation, [i,j])
         value = self.action(*observation)
         value = round(value, 5)
         value = limit(value, -1*LIMIT, LIMIT)
@@ -251,7 +253,9 @@ class CA_2D_model:
 ############################################ Creating GP and image ################################################
 toolbox = base.Toolbox()
 input_size = (1+VISION*2)**2
-if APPLY_SOBEL_FILTER:
+if APPLY_SOBEL_FILTER and VISION == 1:
+    input_size += 2
+if GPS_ON_CELL:
     input_size += 2
 pset = gp.PrimitiveSet("MAIN", input_size) 
 
@@ -285,17 +289,28 @@ def min(a, b):
         return a
     return b
 
+def equal(a, b):
+    if a == b:
+        return 1
+    return 0
+
+def opposite(a):
+    return 1 - a
+
 ############################################ Creating the GP ################################################
 # Adding functions
 pset.addPrimitive(operator.add, 2)
 pset.addPrimitive(operator.sub, 2)
 pset.addPrimitive(operator.mul, 2)
-# pset.addPrimitive(operator.abs, 1)
+pset.addPrimitive(operator.abs, 1)
 pset.addPrimitive(protected_div, 2)
 pset.addPrimitive(limit, 3)
-# pset.addPrimitive(if_then_else, 3)
-# pset.addPrimitive(max, 2)
-# pset.addPrimitive(min, 2)
+pset.addPrimitive(if_then_else, 3)
+pset.addPrimitive(max, 2)
+pset.addPrimitive(min, 2)
+pset.addPrimitive(equal, 2)
+pset.addPrimitive(opposite, 1)
+
 # Adding constants
 pset.addTerminal(0)
 pset.addTerminal(1)
