@@ -78,7 +78,7 @@ class CA_2D_model:
         for i in range(target_image.shape[0]):
             for j in range(target_image.shape[1]):
                 if ca[i, j] > 1 or ca[i, j] < 0:  # Checking if the cell is in the right interval
-                    return -1000
+                    return 1000
                 l = ca[i, j] - target_image[i, j]
                 loss += l**2
-        return 1 - loss
+        return loss

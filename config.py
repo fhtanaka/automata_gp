@@ -2,7 +2,7 @@ import numpy as np
 
 TARGET_EMOJI = 0  # @param "🦎"
 MAX_HEIGHT = 15
-POPULATION = 8
+POPULATION = 4
 APPLY_SOBEL_FILTER = False
 VISION = 1
 TESTS_FOR_EACH_TREE = 1

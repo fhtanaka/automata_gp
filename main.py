@@ -56,9 +56,6 @@ def eval_individual(individual: Graph, target_image, layers, render=False):
     return fitness
 
 
-def avg(aux):
-    return round(np.mean(aux), 1)
-
 def main():
 
     TARGET_IMG = test_images.degrade_img()

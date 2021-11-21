@@ -81,3 +81,10 @@ def print_img(img):
     plt.figure(figsize=(4, 4))
     plt.imshow(img, cmap=plt.get_cmap('gray'), vmin=0, vmax=1)
     plt.show()
+
+def grayscale_to_rgb(img):
+    blue_channel = np.array(img*255, dtype = 'uint8')
+    red_channel = np.array(img*255, dtype = 'uint8')
+    green_channel = np.array(img*255, dtype = 'uint8')
+    
+    return np.stack((red_channel, blue_channel, green_channel), axis=2)
