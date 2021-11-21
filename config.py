@@ -1,0 +1,16 @@
+import numpy as np
+
+TARGET_EMOJI = 0  # @param "🦎"
+MAX_HEIGHT = 15
+POPULATION = 8
+APPLY_SOBEL_FILTER = False
+VISION = 1
+TESTS_FOR_EACH_TREE = 1
+N_TOTAL_STEPS = 100
+GENS = 30
+TARGET_IMG = np.full((25, 25), .5)
+SAVETO = None
+RENDER = False
+LIMIT = 10000
+GPS_ON_CELL = True
+EXTRA_LAYERS = 3
