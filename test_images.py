@@ -9,6 +9,12 @@ def degrade_img():
     return img
 
 
+def one_color_img(color=0.5):
+    img = np.ones((25, 25))
+    for i in range(25):
+        img[i][:] =color
+    return img
+
 def column_img():
     img = np.ones((25, 25))
     for i in range(25):

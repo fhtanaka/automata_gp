@@ -67,8 +67,8 @@ class CA_2D_model:
         self.ca = new_ca
         return True
 
-    def remove_pad(self):
-        return self.ca[0, self.vision:self.len - self.vision, self.vision:self.wid - self.vision]
+    def remove_pad(self, layer = 0):
+        return self.ca[layer, self.vision:self.len - self.vision, self.vision:self.wid - self.vision]
 
     def fitness(self, target_image):
         ca = self.remove_pad()
