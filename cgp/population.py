@@ -53,11 +53,16 @@ class Population:
         self.prob_mut_chance = prob_mut_chance
         self.mutate_active = mutate_active_only
 
+        self.graph_pars = (n_in, n_out, n_row, n_col, levels_back)
         self.indvs: List[Graph] = []
-        for _ in range(population_size): 
-            indv = Graph(n_in, n_out, n_row, n_col, levels_back, self.operations)
-            self.indvs.append(indv)
+        self.generate_graphs()
     
+    def generate_graphs(self):
+        self.indvs: List[Graph] = []
+        for _ in range(self.population_size): 
+            indv = Graph(*self.graph_pars, self.operations)
+            self.indvs.append(indv)
+
     def iterate_one_plus_lambda(self, n_champions, fitness_modifier):
         # This order the indvs first by ID (lesser IDs first) and then by fitness
         # Since these sorts are stable, the indvs at the end of the array are the champions
@@ -108,6 +113,8 @@ class Population:
                             fit_achieved = True
             if report is not None and i%report == 0:
                 print("generation ", i, ": ", best_fitness)
+            if best_fitness == 1000:
+                self.generate_graphs()
             if fit_achieved:
                 break
             
