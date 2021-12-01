@@ -6,7 +6,10 @@ import itertools
 import networkx as nx
 import matplotlib.pyplot as plt
 
-cte = Operation(arity=1, operation=lambda x:x, string="x")
+def cte_op(x):
+    return x
+
+cte = Operation(arity=1, operation=cte_op, string="x")
 
 class Graph:
     rng = np.random
@@ -154,10 +157,13 @@ class Graph:
 
     def mutate_node_gene(self, node_id):
         node = self.nodes[node_id]
-        n_genes = len(node.inputs) + 1 # n connections genes plus the operation gene
+        n_genes = len(node.inputs) # n connections
+        if node.col_num != 1+self.n_col:
+            n_genes += 1  # if it is not an output node, it can mutate its operation
         mutation = Graph.rng.randint(0, n_genes)
 
-        if mutation < len(node.inputs): # mutates the connection
+        # mutates the connection
+        if mutation < len(node.inputs):
             previous_cols = self.possible_connections_per_col[node.col_num]
             node.inputs[mutation] = Graph.rng.choice(previous_cols)
         else: # mutates the operation
