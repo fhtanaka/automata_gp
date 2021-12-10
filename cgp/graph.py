@@ -84,7 +84,7 @@ class Graph:
                     arity  = current_node.operation.arity
                     
                     # pick n=arity nodes randomly
-                    inodes_idlist = Graph.rng.choice(previous_cols, arity)
+                    inodes_idlist = Graph.rng.choice(previous_cols, arity, replace=False)
                     
                     # add to the list of inputs
                     current_node.add_inputs(inodes_idlist)
@@ -130,7 +130,10 @@ class Graph:
         if node.value is not None:
             return node.value
         
-        node.value = node.operation(*[self.get_node_value(x) for x in node.inputs])
+        inputs = [self.get_node_value(x) for x in node.inputs]
+        if len(inputs) != node.operation.arity:
+            print("something went wrong")
+        node.value = node.operation(*inputs)
         
         return node.value
 
@@ -173,19 +176,19 @@ class Graph:
         node = self.nodes[node_id]
         possible_ops = [op for op in self.available_operations if op != node.operation]
         new_op = Graph.rng.choice(possible_ops)
-
         # in this case we should add connections
         if new_op.arity > node.operation.arity: 
             inputs_to_add = new_op.arity - node.operation.arity
             previous_cols = self.possible_connections_per_col[node.col_num]
-            inodes_idlist = Graph.rng.choice(previous_cols, inputs_to_add)                    
+            inodes_idlist = Graph.rng.choice(previous_cols, inputs_to_add, replace=False)                    
             node.add_inputs(inodes_idlist)
         # in this case we should remove connections    
         elif new_op.arity < node.operation.arity:
             inputs_to_remove = node.operation.arity - new_op.arity
-            inodes_idlist = Graph.rng.choice(node.inputs, inputs_to_remove) 
+            inodes_idlist = Graph.rng.choice(node.inputs, inputs_to_remove, replace=False) 
             node.remove_inputs(inodes_idlist)
-            
+        if len(node.inputs) != new_op.arity:
+            print("AA")
         node.operation = new_op
     
     def clone_graph(self):
@@ -207,7 +210,8 @@ class Graph:
         for i in n.inputs:
             self.activate_node(i)
 
-    def draw_graph(self):
+    def draw_graph(self, only_active=True):
+        plt.rcParams["figure.figsize"] = (15, 20)
         graph = nx.Graph()
         pos = {}
         labels = {}
@@ -220,12 +224,13 @@ class Graph:
             5: "tab:blue",
         }
 
-
         col_num = len(self.columns) - 1
         for col in reversed(self.columns):
             row = 0
             for n_id in col:
                 node = self.nodes[n_id]
+                if only_active and not node.active:
+                    continue
                 pos[node.id] = (col_num, row)
 
                 if col_num == 0:
@@ -234,7 +239,8 @@ class Graph:
                     labels[node.id] = "Out_" + str(row)
                 elif node.operation != None:
                     labels[node.id] = node.operation.string
-                    
+
+                graph.add_node(node.id)
                 for input in node.inputs:
                     graph.add_edge(input, node.id, color=color_dict[col_num%len(color_dict)])
         
@@ -243,16 +249,17 @@ class Graph:
         
         options = {
             "font_size": 12,
-            "node_size": 1500,
+            "node_size": 1800,
             "node_color": "white",
             "edgecolors": "black",
-            "edge_color": nx.get_edge_attributes(graph,'color').values(),
+            "edge_color": nx.get_edge_attributes(graph, 'color').values(),
             "linewidths": 2,
             "width": 2,
             "labels": labels,
             "pos": pos
         }
         nx.draw_networkx(graph, **options)
+        #     nx.draw_networkx(graph, pos)
 
         # Set margins for the axes so that nodes aren't clipped
         ax = plt.gca()

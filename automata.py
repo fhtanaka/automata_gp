@@ -49,7 +49,7 @@ class CA_2D_model:
         observation = self.get_observation(i, j)
 
         # checking if the cell is alive
-        if observation[:].sum() >= WHITE * self.vision_size:
+        if observation.sum() == WHITE * len(observation):
             return np.full(self.layers, WHITE)
 
         if self.gps:

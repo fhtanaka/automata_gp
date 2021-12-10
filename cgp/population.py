@@ -71,16 +71,33 @@ class Population:
 
         new_population: List[Graph] = []
         children_per_parent = int(self.population_size/len(champions))
+
         for parent in champions:
-            parent.reset_graph_value() # I think this reset is unnecessary but it is here just to make sure
+            # I think this reset is unnecessary but it is here just to make sure
+            parent.reset_graph_value()
             new_population.append(parent)
-            for _ in range(children_per_parent):
+
+        for _ in range(children_per_parent):
+            for parent in champions:
+                parent.reset_graph_value()
                 indv = parent.clone_graph()
                 if self.mutation_strategy == "point":
                     indv.point_mutation(self.point_mut_qnt, self.mutate_active)
                 elif self.mutation_strategy == "prob":
-                    indv.probabilistic_mutation(self.prob_mut_chance, self.mutate_active)
+                    indv.probabilistic_mutation(
+                        self.prob_mut_chance, self.mutate_active)
                 new_population.append(indv)
+
+        # for parent in champions:
+        #     parent.reset_graph_value() # I think this reset is unnecessary but it is here just to make sure
+        #     new_population.append(parent)
+        #     for _ in range(children_per_parent):
+        #         indv = parent.clone_graph()
+        #         if self.mutation_strategy == "point":
+        #             indv.point_mutation(self.point_mut_qnt, self.mutate_active)
+        #         elif self.mutation_strategy == "prob":
+        #             indv.probabilistic_mutation(self.prob_mut_chance, self.mutate_active)
+        #         new_population.append(indv)
         
         self.indvs = new_population
 

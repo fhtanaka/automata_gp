@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import imageio
 
 WHITE = 255
 BLACK = 0
@@ -32,7 +31,16 @@ def plus_img(size):
     img = np.full((size, size), WHITE)
     for i in range(size):
         for j in range(size):
-            if j == 12 or i == 12:
+            if j == int(size/2) or i == int(size/2):
+                img[i][j] = BLACK
+    return img
+
+
+def fat_plus_img(size):
+    img = np.full((size, size), WHITE)
+    for i in range(size):
+        for j in range(size):
+            if int(size/2) - 1 <= j <= int(size/2) + 1 or int(size/2) - 1 <= i <= int(size/2) + 1:
                 img[i][j] = BLACK
     return img
 
@@ -54,6 +62,17 @@ def diagonal_img(size):
                 img[i][j] = BLACK
     return img
 
+def checkboard_img(size):
+    img = np.full((size, size), WHITE)
+    for i in range(size):
+        for j in range(size):
+            img[i][j] = BLACK
+            if j%2 == 0 and i%2 != 0:
+                    img[i][j] = WHITE
+            if j%2 != 0 and i%2 == 0:
+                img[i][j] = WHITE
+
+    return img
 
 def inv_diagonal_img(size):
     img = np.full((size, size), WHITE)
